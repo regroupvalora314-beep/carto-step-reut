@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartographie & Opportunités REUT (STEP - Déchets)</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary-color: #1e3d59;
+            --accent-color: #17b978;
+            --step-color: #0d6efd;
+            --dechet-color: #dc3545;
+            --bg-light: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-light);
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        .navbar {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        }
+
+        .sidebar {
+            background-color: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        #map {
+            height: calc(100vh - 60px);
+            width: 100%;
+            z-index: 1;
+        }
+
+        .kpi-card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .kpi-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #6c757d;
+            font-weight: 600;
+        }
+
+        .kpi-value {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .badge-favorable { background-color: #198754; color: white; }
+        .badge-etudier { background-color: #ffc107; color: #212529; }
+        .badge-defavorable { background-color: #dc3545; color: white; }
+
+        .custom-slider .form-range::-webkit-slider-thumb {
+            background: var(--primary-color);
+        }
+
+        .table-container {
+            max-height: 280px;
+            overflow-y: auto;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            display: inline-block;
+        }
+        
+        .legend-line {
+            width: 20px;
+            height: 3px;
+            margin-right: 8px;
+            display: inline-block;
+        }
+
+        .tab-pane {
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header / Navbar -->
+    <nav class="navbar navbar-dark px-3">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="fa-solid fa-droplet text-info me-2"></i>
+                Observatoire Spatial & Opportunités REUT
+            </span>
+            <span class="badge bg-outline-light text-white-50 border border-secondary" style="font-size: 0.8rem;">
+                <i class="fa-solid fa-earth-europe me-1"></i> Synergies STEP &amp; Déchèteries
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar Panneau de Contrôle -->
+            <div class="col-lg-4 col-md-5 sidebar">
+                
+                <!-- Nav Tabs -->
+                <ul class="nav nav-pills nav-justified mb-3" id="pills-tab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active btn-sm" id="pills-params-tab" data-bs-toggle="pill" data-bs-target="#pills-params" type="button" role="tab"><i class="fa-solid fa-sliders me-1"></i> Paramètres</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link btn-sm" id="pills-stats-tab" data-bs-toggle="pill" data-bs-target="#pills-stats" type="button" role="tab"><i class="fa-solid fa-chart-pie me-1"></i> Résultats</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link btn-sm" id="pills-data-tab" data-bs-toggle="pill" data-bs-target="#pills-data" type="button" role="tab"><i class="fa-solid fa-table me-1"></i> Export Data</button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="pills-tabContent">
+                    
+                    <!-- TAB 1 : PARAMÈTRES ET FILTRES -->
+                    <div class="tab-pane fade show active" id="pills-params" role="tabpanel">
+                        <div class="card p-3 mb-3 border-0 bg-light">
+                            <h6 class="fw-bold mb-3 text-primary"><i class="fa-solid fa-filter me-2"></i>Critères de Sélection Spatial</h6>
+                            
+                            <!-- Slider Distance Max -->
+                            <div class="mb-3 custom-slider">
+                                <label for="distRange" class="form-label d-flex justify-content-between">
+                                    <span>Distance Max. de Raccordement :</span>
+                                    <span class="fw-bold text-primary" id="distVal">5.0 km</span>
+                                </label>
+                                <input type="range" class="form-range" min="0.5" max="15" step="0.5" id="distRange" value="5.0">
+                            </div>
+
+                            <!-- Slider Debit STEP Min -->
+                            <div class="mb-3 custom-slider">
+                                <label for="stepRange" class="form-label d-flex justify-content-between">
+                                    <span>Capacité Min. STEP (Débit m³/j) :</span>
+                                    <span class="fw-bold text-primary" id="stepVal">1 000 m³/j</span>
+                                </label>
+                                <input type="range" class="form-range" min="100" max="10000" step="100" id="stepRange" value="1000">
+                            </div>
+                        </div>
+
+                        <div class="card p-3 mb-3 border-0 bg-light">
+                            <h6 class="fw-bold mb-3 text-primary"><i class="fa-solid fa-calculator me-2"></i>Modèle Économique &amp; Raccordement</h6>
+                            
+                            <!-- Cout Lineaire Canalisation -->
+                            <div class="mb-3">
+                                <label for="costInput" class="form-label form-label-sm">Coût d'extension réseau (€/mètre linéaire) :</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">€/m</span>
+                                    <input type="number" class="form-control" id="costInput" value="250" step="10">
+                                </div>
+                                <small class="text-muted" style="font-size: 0.75rem;">Comprend terrassement, pose de conduites PEHD/Fonte &amp; réfection.</small>
+                            </div>
+
+                            <!-- Amortissement -->
+                            <div class="mb-3">
+                                <label for="amortInput" class="form-label form-label-sm">Durée d'amortissement (Années) :</label>
+                                <input type="number" class="form-control form-control-sm" id="amortInput" value="15" min="5" max="30">
+                            </div>
+                        </div>
+
+                        <!-- Legend Box -->
+                        <div class="card p-3 border-0 bg-white">
+                            <h6 class="fw-bold mb-2 text-secondary" style="font-size: 0.85rem;">Légende de la Carte</h6>
+                            <div class="legend-item"><span class="legend-color" style="background: var(--step-color);"></span> STEP (Station d'Épuration)</div>
+                            <div class="legend-item"><span class="legend-color" style="background: var(--dechet-color);"></span> Déchèterie / Site ICPE</div>
+                            <div class="legend-item"><span class="legend-line" style="background: #198754;"></span> Synergie Très Favorable (&lt; 0.50 €/m³)</div>
+                            <div class="legend-item"><span class="legend-line" style="background: #ffc107;"></span> À Étudier (0.50 - 1.20 €/m³)</div>
+                            <div class="legend-item"><span class="legend-line" style="background: #dc3545;"></span> Défavorable (&gt; 1.20 €/m³)</div>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2 : RÉSULTATS & CHARTS -->
+                    <div class="tab-pane fade" id="pills-stats" role="tabpanel">
+                        <!-- KPI Grid -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <div class="card kpi-card p-2 bg-white text-center">
+                                    <div class="kpi-title">Couples Identifiés</div>
+                                    <div class="kpi-value" id="kpiCouples">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card kpi-card p-2 bg-white text-center">
+                                    <div class="kpi-title">Projets Favorables</div>
+                                    <div class="kpi-value text-success" id="kpiFavorables">0</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card kpi-card p-2 bg-white text-center">
+                                    <div class="kpi-title">Vol. Substituable</div>
+                                    <div class="kpi-value text-info" id="kpiVolume">0 m³/an</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="card kpi-card p-2 bg-white text-center">
+                                    <div class="kpi-title">CAPEX Global Est.</div>
+                                    <div class="kpi-value text-dark" id="kpiCapex">0 M€</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chart Section -->
+                        <div class="card p-3 border-0 bg-white mb-3">
+                            <h6 class="fw-bold mb-2 text-primary" style="font-size: 0.85rem;">Répartition de la Faisabilité REUT</h6>
+                            <canvas id="reutChart" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3 : TABLEAU ET EXPORT -->
+                    <div class="tab-pane fade" id="pills-data" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold m-0 text-primary" style="font-size: 0.9rem;">Paires STEP &rarr; Déchèteries</h6>
+                            <button class="btn btn-sm btn-outline-success" id="btnExportCSV">
+                                <i class="fa-solid fa-file-csv me-1"></i> Exporter CSV
+                            </button>
+                        </div>
+                        
+                        <div class="table-container bg-white rounded border">
+                            <table class="table table-sm table-hover text-nowrap" style="font-size: 0.75rem;">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>STEP</th>
+                                        <th>Déchèterie</th>
+                                        <th>Dist. (km)</th>
+                                        <th>CAPEX (€)</th>
+                                        <th>Ratio (€/m³)</th>
+                                        <th>Statut</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody">
+                                    <!-- Dynamic content -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Carte Interactive (Leaflet) -->
+            <div class="col-lg-8 col-md-7 p-0">
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        // --- 1. JEU DE DONNÉES SIMULÉ (RÉALISTE - FRANCE) ---
+        const stepData = [
+            { id: "STEP_1", nom: "STEP Nantes Tougas", lat: 47.195, lon: -1.582, debit: 18000 },
+            { id: "STEP_2", nom: "STEP Lyon Saint-Fons", lat: 45.712, lon: 4.855, debit: 45000 },
+            { id: "STEP_3", nom: "STEP Toulouse Ginestous", lat: 43.633, lon: 1.411, debit: 32000 },
+            { id: "STEP_4", nom: "STEP Bordeaux Clos de Hilde", lat: 44.808, lon: -0.543, debit: 28000 },
+            { id: "STEP_5", nom: "STEP Marseille Cortiou", lat: 43.212, lon: 5.412, debit: 50000 },
+            { id: "STEP_6", nom: "STEP Rennes Beaurade", lat: 48.109, lon: -1.721, debit: 16000 },
+            { id: "STEP_7", nom: "STEP Strasbourg La Wantzenau", lat: 48.641, lon: 7.812, debit: 22000 },
+            { id: "STEP_8", nom: "STEP Montpellier Maera", lat: 43.581, lon: 3.899, debit: 24000 },
+            { id: "STEP_9", nom: "STEP Lille Marquette", lat: 50.669, lon: 3.061, debit: 35000 },
+            { id: "STEP_10", nom: "STEP Nice Haliotis", lat: 43.673, lon: 7.228, debit: 30000 },
+            { id: "STEP_11", nom: "STEP Vannes Tohannic", lat: 47.648, lon: -2.742, debit: 8500 },
+            { id: "STEP_12", nom: "STEP Lorient Kergroise", lat: 47.741, lon: -3.361, debit: 9200 }
+        ];
+
+        const dechetData = [
+            { id: "DEC_1", nom: "Déchèterie Nantes Nord", lat: 47.230, lon: -1.560, besoin: 450 },
+            { id: "DEC_2", nom: "Centre de tri Nantes Sud", lat: 47.180, lon: -1.540, besoin: 800 },
+            { id: "DEC_3", nom: "Déchèterie Lyon Gerland", lat: 45.725, lon: 4.830, besoin: 600 },
+            { id: "DEC_4", nom: "ISDND Feyzin / Vénissieux", lat: 45.690, lon: 4.870, besoin: 1500 },
+            { id: "DEC_5", nom: "Déchèterie Toulouse Sesquières", lat: 43.645, lon: 1.425, besoin: 350 },
+            { id: "DEC_6", nom: "Déchèterie Bordeaux Bastide", lat: 44.820, lon: -0.530, besoin: 500 },
+            { id: "DEC_7", nom: "Plateforme Compostage Marseille", lat: 43.230, lon: 5.430, besoin: 1200 },
+            { id: "DEC_8", nom: "Déchèterie Rennes Villejean", lat: 48.120, lon: -1.700, besoin: 300 },
+            { id: "DEC_9", nom: "Déchèterie Strasbourg Port", lat: 48.625, lon: 7.790, besoin: 750 },
+            { id: "DEC_10", nom: "Centre Valorisation Montpellier", lat: 43.570, lon: 3.880, besoin: 950 },
+            { id: "DEC_11", nom: "Déchèterie Vannes Est", lat: 47.655, lon: -2.720, besoin: 250 },
+            { id: "DEC_12", nom: "Déchèterie Lorient Nord", lat: 47.760, lon: -3.350, besoin: 300 }
+        ];
+
+        // --- 2. CALCUL FORMULE HAVERSINE (Distance en KM) ---
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Rayon terre en km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // --- 3. INITIALISATION CARTE LEAFLET ---
+        const map = L.map('map').setView([46.603354, 1.888334], 6); // Centre France
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 19
+        }).addTo(map);
+
+        let mapLayersGroup = L.layerGroup().addTo(map);
+
+        // Chart.js Instance
+        let chartInstance = null;
+
+        // --- 4. MOTEUR DE CALCUL & MISE À JOUR DE L'INTERFACE ---
+        let currentResults = [];
+
+        function processData() {
+            // Lecture des filtres
+            const maxDistance = parseFloat(document.getElementById('distRange').value);
+            const minDebit = parseFloat(document.getElementById('stepRange').value);
+            const costPerMeter = parseFloat(document.getElementById('costInput').value);
+            const amortYears = parseFloat(document.getElementById('amortInput').value);
+
+            // UI Label updates
+            document.getElementById('distVal').innerText = maxDistance.toFixed(1) + " km";
+            document.getElementById('stepVal').innerText = minDebit.toLocaleString() + " m³/j";
+
+            // Vider les anciens éléments graphiques
+            mapLayersGroup.clearLayers();
+            currentResults = [];
+
+            let favorableCount = 0;
+            let etudierCount = 0;
+            let defavorableCount = 0;
+            let totalCapex = 0;
+            let totalVolumeAnnual = 0;
+
+            // Filtration des STEPs
+            const validSteps = stepData.filter(s => s.debit >= minDebit);
+
+            // Affichage des points STEP
+            validSteps.forEach(step => {
+                L.circleMarker([step.lat, step.lon], {
+                    radius: 7,
+                    fillColor: '#0d6efd',
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).bindPopup(`<b>${step.nom}</b><br>Débit sortant: <b>${step.debit.toLocaleString()} m³/j</b>`)
+                  .addTo(mapLayersGroup);
+            });
+
+            // Affichage des points Déchèteries
+            dechetData.forEach(dec => {
+                L.circleMarker([dec.lat, dec.lon], {
+                    radius: 6,
+                    fillColor: '#dc3545',
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).bindPopup(`<b>${dec.nom}</b><br>Besoin estimé: <b>${dec.besoin.toLocaleString()} m³/j</b>`)
+                  .addTo(mapLayersGroup);
+            });
+
+            // Calcul des liaisons STEP -> Déchèterie la plus proche
+            validSteps.forEach(step => {
+                let closest = null;
+                let minD = Infinity;
+
+                dechetData.forEach(dec => {
+                    const d = calculateDistance(step.lat, step.lon, dec.lat, dec.lon);
+                    if (d < minD) {
+                        minD = d;
+                        closest = dec;
+                    }
+                });
+
+                if (closest && minD <= maxDistance) {
+                    const distanceMeters = minD * 1000;
+                    const capex = distanceMeters * costPerMeter;
+                    const volUtileJour = Math.min(step.debit, closest.besoin);
+                    const volAnnuel = volUtileJour * 365;
+                    const ratioEurM3 = volAnnuel > 0 ? (capex / (volAnnuel * amortYears)) : Infinity;
+
+                    let status = "";
+                    let colorLine = "";
+                    let badgeClass = "";
+
+                    if (ratioEurM3 < 0.50) {
+                        status = "Très Favorable";
+                        colorLine = "#198754";
+                        badgeClass = "badge-favorable";
+                        favorableCount++;
+                    } else if (ratioEurM3 <= 1.20) {
+                        status = "À étudier";
+                        colorLine = "#ffc107";
+                        badgeClass = "badge-etudier";
+                        etudierCount++;
+                    } else {
+                        status = "Défavorable";
+                        colorLine = "#dc3545";
+                        badgeClass = "badge-defavorable";
+                        defavorableCount++;
+                    }
+
+                    totalCapex += capex;
+                    totalVolumeAnnual += volAnnuel;
+
+                    // Trace de la ligne
+                    L.polyline([[step.lat, step.lon], [closest.lat, closest.lon]], {
+                        color: colorLine,
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: '5, 10'
+                    }).bindPopup(`
+                        <b>Secteur REUT:</b> ${step.nom} &rarr; ${closest.nom}<br>
+                        <b>Distance:</b> ${minD.toFixed(2)} km<br>
+                        <b>CAPEX Est.:</b> ${Math.round(capex).toLocaleString()} €<br>
+                        <b>Ratio:</b> ${ratioEurM3.toFixed(2)} €/m³<br>
+                        <b>Statut:</b> <span class="badge ${badgeClass}">${status}</span>
+                    `).addTo(mapLayersGroup);
+
+                    currentResults.push({
+                        step: step.nom,
+                        dechet: closest.nom,
+                        distKm: minD.toFixed(2),
+                        capex: Math.round(capex),
+                        ratio: ratioEurM3.toFixed(2),
+                        statut: status,
+                        badgeClass: badgeClass
+                    });
+                }
+            });
+
+            // Update KPIs
+            document.getElementById('kpiCouples').innerText = currentResults.length;
+            document.getElementById('kpiFavorables').innerText = favorableCount;
+            document.getElementById('kpiVolume').innerText = (totalVolumeAnnual / 1000).toFixed(0) + " k.m³";
+            document.getElementById('kpiCapex').innerText = (totalCapex / 1000000).toFixed(2) + " M€";
+
+            // Update Table & Chart
+            updateTable();
+            updateChart(favorableCount, etudierCount, defavorableCount);
+        }
+
+        // --- 5. MISE À JOUR DU TABLEAU ---
+        function updateTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = "";
+
+            if (currentResults.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-3">Aucune opportunité identifiée avec ces critères.</td></tr>`;
+                return;
+            }
+
+            currentResults.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><b>${r.step}</b></td>
+                    <td>${r.dechet}</td>
+                    <td>${r.distKm}</td>
+                    <td>${r.capex.toLocaleString()} €</td>
+                    <td><b>${r.ratio}</b></td>
+                    <td><span class="badge ${r.badgeClass}">${r.statut}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // --- 6. CHART.JS GRAPH---
+        function updateChart(fav, etud, defav) {
+            const ctx = document.getElementById('reutChart').getContext('2d');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Très Favorable', 'À Étudier', 'Défavorable'],
+                    datasets: [{
+                        data: [fav, etud, defav],
+                        backgroundColor: ['#198754', '#ffc107', '#dc3545']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // --- 7. EXPORT CSV ---
+        document.getElementById('btnExportCSV').addEventListener('click', () => {
+            if (currentResults.length === 0) return;
+
+            let csvContent = "data:text/csv;charset=utf-8,STEP;Dechetterie;Distance_km;CAPEX_EUR;Ratio_EUR_m3;Statut
+";
+            currentResults.forEach(r => {
+                csvContent += `"${r.step}";"${r.dechet}";${r.distKm};${r.capex};${r.ratio};"${r.statut}"
+`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "opportunites_reut_export.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // Event Listeners sur filtres
+        document.getElementById('distRange').addEventListener('input', processData);
+        document.getElementById('stepRange').addEventListener('input', processData);
+        document.getElementById('costInput').addEventListener('input', processData);
+        document.getElementById('amortInput').addEventListener('input', processData);
+
+        // Premier calcul au chargement
+        window.onload = processData;
+    </script>
+</body>
+</html>
